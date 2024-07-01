@@ -41,7 +41,7 @@ $localConfig = json_decode($localConfig_json, true);
 
 foreach ($localConfig['urlsToDownload'] as $urlToDownload) {
 
-    pr ($urlToDownload);
+    #pr ($urlToDownload);
 
     $data = file_get_contents($urlToDownload);
 
@@ -49,6 +49,10 @@ foreach ($localConfig['urlsToDownload'] as $urlToDownload) {
 
     $filename = date('Y-m-d_H-i-s').'.sql';
 
+    pr ('Downloading...');
     file_put_contents('/var/backups/'.$filename, $data);
 }
+
+
+pr ('Downloaded: backups/'.$filename);
 
