@@ -22,3 +22,12 @@ function dd($msg) {
     pr($msg);
     exit;
 }
+
+
+function listFile($dir) {
+    $ignore = ['.','..','empty'];
+    return array_diff(
+        scandir($dir),
+        $ignore
+    );
+}
