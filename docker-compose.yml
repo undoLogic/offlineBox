@@ -1,9 +1,37 @@
-version: '3.8'
+version: "3.9"
 services:
   web:
-    build: .
+    build: ./web81
+    image: docker_web81
     ports:
       - "80:80"
+      - "443:443"
+    environment:
+      DATABASE_URL: mysql://root:undologic@db/LIVE_database
+      DATABASE_STORAGE_URL: mysql://root:undologic@db/storage
+      SECURITY_SALT: CHANGE_ME_NOW_THIS_IS_INSECURE_IF_YOU_LEAVE_IT
     volumes:
-      - .:/var/www/html
-    restart: always
+      - ./sourceFiles/.:/var/www/vhosts/website.com/www
+      - ./sites-available/:/etc/apache2/sites-available/
+      - ./control/:/var/www/html/
+      - ./ini/php.ini:/usr/local/etc/php/conf.d/php.ini
+    depends_on:
+      - db
+
+  db:
+    image: "mysql:5.6.39"
+    command: --max_allowed_packet=932505856 --innodb-log-file-size=150663296
+    volumes:
+      - ./sql/:/docker-entrypoint-initdb.d
+    environment:
+      MYSQL_ROOT_PASSWORD: undologic
+      MYSQL_DATABASE: LIVE_database
+
+  phpmyadmin:
+    image: "phpmyadmin/phpmyadmin"
+    environment:
+      UPLOAD_LIMIT: 300M
+    ports:
+      - "8081:80"
+    depends_on:
+      - db

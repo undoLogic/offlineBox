@@ -1,0 +1,1 @@
+docker logs offlinebox-web-1 --follow
