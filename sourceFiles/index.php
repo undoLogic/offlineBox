@@ -5,10 +5,10 @@ $config = [
     'urlsToDownload' => [
         'www.offlincebox.com'
     ],
-    'pathToSaveTo' => [
+    'pathsToSaveTo' => [
         '/where/to/go'
     ],
-    'urlToNotify' => [
+    'urlsToNotify' => [
         'https://www.offlincebox.com/notifyEndPoint'
     ]
 ];
@@ -27,7 +27,7 @@ function dd($msg) {
 if (!file_exists('offlineBox_config.json')) {
     //pr('does not exist');
     file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
-    pr ('created config file');
+    dd ('created config file: Now go and add your urls and destinations and run again');
 }
 
 
@@ -35,6 +35,7 @@ if (!file_exists('offlineBox_config.json')) {
 $localConfig_json = file_get_contents($configFile);
 
 $localConfig = json_decode($localConfig_json, true);
+
 //dd($localConfig);
 
 
@@ -50,7 +51,11 @@ foreach ($localConfig['urlsToDownload'] as $urlToDownload) {
     $filename = date('Y-m-d_H-i-s').'.sql';
 
     pr ('Downloading...');
-    file_put_contents('/var/backups/'.$filename, $data);
+
+    foreach ($localConfig['pathsToSaveTo'] as $pathToSaveTo) {
+        file_put_contents($pathToSaveTo.$filename, $data);
+    }
+
 }
 
 
