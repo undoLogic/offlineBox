@@ -32,16 +32,23 @@ if (!file_exists('offlineBox_config.json')) {
 
 
 
-$localConfig = file_get_contents($configFile);
+$localConfig_json = file_get_contents($configFile);
 
-dd($localConfig);
+$localConfig = json_decode($localConfig_json, true);
+//dd($localConfig);
 
-//phpinfo();
 
-//$offlineBox_shared_secret = '123';
-//
-//$url = "https://offlinebox.com/dump/$offlineBox_shared_secret";
-//
-//$out = file_get_contents($url);
-//
-//print_r ($out);
+
+foreach ($localConfig['urlsToDownload'] as $urlToDownload) {
+
+    pr ($urlToDownload);
+
+    $data = file_get_contents($urlToDownload);
+
+    //dd($data);
+
+    $filename = date('Y-m-d_H-i-s').'.sql';
+
+    file_put_contents('/var/backups/'.$filename, $data);
+}
+

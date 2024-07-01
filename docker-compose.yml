@@ -15,6 +15,7 @@ services:
       - ./sites-available/:/etc/apache2/sites-available/
       - ./control/:/var/www/html/
       - ./ini/php.ini:/usr/local/etc/php/conf.d/php.ini
+      - ./backups/.:/var/backups
     depends_on:
       - db
 
