@@ -13,8 +13,8 @@ RUN apt-get update && apt-get install -y \
 
 # Add the cron job to execute the PHP script every minute
 #RUN echo "* * * * * root cd /var/www/html && /usr/local/bin/php /var/www/html/run.php >> /var/log/cron.log 2>&1" > /etc/cron.d/my-cron-job
-RUN echo "0 8 * * * root cd /var/www/html && /usr/local/bin/php /var/www/html/run.php >> /var/log/cron.log 2>&1" > /etc/cron.d/my-cron-job
-RUN echo "0 16 * * * root cd /var/www/html && /usr/local/bin/php /var/www/html/run.php >> /var/log/cron.log 2>&1" >> /etc/cron.d/my-cron-job
+RUN echo "0 12 * * * root cd /var/www/html && /usr/local/bin/php /var/www/html/run.php >> /var/log/cron.log 2>&1" > /etc/cron.d/my-cron-job
+RUN echo "0 20 * * * root cd /var/www/html && /usr/local/bin/php /var/www/html/run.php >> /var/log/cron.log 2>&1" >> /etc/cron.d/my-cron-job
 
 # Give execution rights on the cron job
 RUN chmod 0644 /etc/cron.d/my-cron-job
