@@ -1,2 +1,2 @@
 @ECHO OFF
-docker exec -it offlinebox-web-1 bash
+docker exec -it offlinebox bash

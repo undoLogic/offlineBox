@@ -1,2 +1,2 @@
-#!/usr/bin/env bash
+@echo off
 docker-compose up -d
