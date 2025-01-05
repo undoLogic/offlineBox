@@ -1,5 +1,16 @@
 ### OfflineBox 
 
+Allows to easily download database backups sucurely from your custom software. 
+
+## Install
+Download files from github
+- Unzip
+- Install Docker 
+- Run 1-autoStart-offlineBox.bat
+- It should start up
+
+More coming later
+
 ## Auto-Start when Windows Starts
 
 To ensure this always runs each day and when the computer starts we are going to create a Windows Task Scheduler
