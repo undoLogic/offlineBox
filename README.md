@@ -3,13 +3,23 @@
 Allows to easily download database backups sucurely from your custom software. 
 
 ## Install
-Download files from github
-- Unzip
-- Install Docker 
-- Run 1-autoStart-offlineBox.bat
-- It should start up
 
-More coming later
+First install Docker
+- Settings - Start Docker when you sign into your computer 
+
+Download OfflineBox files from github
+- Unzip
+- Run 1-start-offlineBox.sh
+
+Add your config file (auto-populate coming later)
+
+It will auto run 2 times per day
+
+## Manual run
+From terminal
+- 4-debug.bat
+- php run.php
+- This will run a single time
 
 ## Auto-Start when Windows Starts
 
@@ -23,3 +33,5 @@ To ensure this always runs each day and when the computer starts we are going to
 - Put the folder where these files are in 'start in (optional)'
 
 Now your docker will always be running and your backups will run in the background
+
+- - - More coming later - - - 
