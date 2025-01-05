@@ -31,6 +31,7 @@ To ensure this always runs each day and when the computer starts we are going to
 4. Tiggers - "Daily at 7AM" AND "At Startup"
 5. Actions - "Start a Program" - Browse for '1-autoStart-offlineBox.bat' 
 - Put the folder where these files are in 'start in (optional)'
+- Delay task for 1 minute (give time for docker to startup)
 
 Now your docker will always be running and your backups will run in the background
 
