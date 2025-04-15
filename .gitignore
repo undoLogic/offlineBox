@@ -2,3 +2,5 @@
 /sourceFiles/offlineBox_config.json
 
 /backups/*
+
+.env
