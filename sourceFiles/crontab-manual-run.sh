@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-php run.php
+php index.php?all
