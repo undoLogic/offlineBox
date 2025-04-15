@@ -19,6 +19,13 @@ Client
 
 It will auto run 2 times per day while docker is running
 
+Create .env file
+- You can change this to save your backups to a different location on your computer 
+```shell
+# .env.example
+BACKUP_PATH=./backup/
+```
+
 
 ## Manual run
 From terminal
