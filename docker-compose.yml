@@ -3,8 +3,7 @@ services:
     build: .
     container_name: offlinebox
     ports:
-      - "80:80"
-      - "443:443"
+      - "8888:80" # Host port : Container port
     volumes:
       - ./sourceFiles/.:/var/www/html
       - ./backups/.:/var/backups/local

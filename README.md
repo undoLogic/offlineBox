@@ -1,6 +1,6 @@
 ### OfflineBox 
 
-Allows to easily download database backups sucurely from your custom software. 
+Allows to easily download database backups sucurely from your CakePHP 4.x custom software. 
 
 ## Install
 
@@ -9,17 +9,21 @@ First install Docker
 
 Download OfflineBox files from github
 - Unzip
-- Run 1-start-offlineBox.sh
+- Run 1start.sh
 
-Add your config file (auto-populate coming later)
+First time your offlineBox_config.json will auto populate
+- After you first run open that file and add your backup location URLS
 
-It will auto run 2 times per day
+Client
+- Copy and paste this to your cakePHP 4.x project
+
+It will auto run 2 times per day while docker is running
+
 
 ## Manual run
 From terminal
-- 4-debug.bat
-- php run.php
-- This will run a single time
+- ./3manualRun.bat
+- This will auto login and display in terminal as it downloads your backup sets
 
 ## Auto-Start when Windows Starts
 

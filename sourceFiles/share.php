@@ -1,14 +1,10 @@
 <?php
 # Setup content
 $config = [
-    'urlsToDownload' => [
-        'www.offlincebox.com'
-    ],
-    'pathsToSaveTo' => [
-        '/where/to/go'
-    ],
-    'urlsToNotify' => [
-        'https://www.offlincebox.com/notifyEndPoint'
+    'backups' => [
+        'NAME' => [
+            'url' => 'urlGoesHere'
+        ]
     ]
 ];
 $configFile = 'offlineBox_config.json';

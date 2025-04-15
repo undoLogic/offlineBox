@@ -4,25 +4,29 @@ include ('share.php');
 
 $configFile = 'offlineBox_config.json';
 
-$localConfig_json = file_get_contents($configFile);
-
-$localConfig = json_decode($localConfig_json, true);
-
-foreach ($localConfig['pathsToSaveTo'] as $pathToSaveTo) {
-    pr ('files at: '.$pathToSaveTo);
-
-
-    foreach ( listFile($pathToSaveTo)  as $file) {
-
-        $timeOfDoiwnload = getLocalTime(convertFilenameToDateTime($file));
-
-        pr ('file: '.$timeOfDoiwnload.' - Days since: '.daysSinceDownload($timeOfDoiwnload));
-    }
+if (!file_exists($configFile)) {
+    pr('ERROR: config file does not exist');
+} else {
+    $backups = json_decode(file_get_contents($configFile), true);
 }
-
-
-//echo getLocalTime(date('Y-m-d H:i:s'));
 ?>
 
 
-<a href="run.php">Manually run download</a>
+<ul>
+<?php foreach ($backups['backups'] as $backupName => $backup): ?>
+
+    <li>
+        <a href="run.php?single=<?= $backupName; ?>">Manually run <?= $backupName; ?></a>
+    </li>
+
+<?php endforeach; ?>
+
+    <li>
+        <a href="run.php">Manually run ALL downloads</a>
+    </li>
+</ul>
+
+
+
+
+
