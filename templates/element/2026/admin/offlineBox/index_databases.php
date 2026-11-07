@@ -11,7 +11,8 @@
     <div class="card-header">
         <h2 class="h5 mb-0">Databases: what will be exported</h2>
     </div>
-    <div class="table-responsive">
+    <?php // Never add table-responsive to OfflineBox tables: it bumps the layout down. ?>
+    <div>
         <table class="table table-sm align-middle mb-0">
             <thead>
                 <tr>
