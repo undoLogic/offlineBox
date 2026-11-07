@@ -393,6 +393,22 @@ sourceFiles/config/schema/YYYY-MM-DD.sql
 - Append related changes to that day's file so the database history remains clear over time.
 - Do not add new SQL changes only to an older consolidated schema file.
 
+## Column Naming: Internal vs External IDs
+
+A column ending in `_id` always means an internal relationship: an integer key pointing at another table in this database (e.g. `user_id`, `group_id`). Nothing else may use the `_id` suffix.
+
+IDs that come from outside systems are named in camelCase ending in `ID`, with no underscore before it:
+
+```text
+stripeCustomerID     not  stripe_customer_id
+googleID             not  google_id
+paypalPayerID        not  paypal_payer_id
+```
+
+- Why: tools rely on `_id` meaning "internal key". OfflineBox anonymized backups keep integer `_id` columns real so relationships still work, and fake everything else. An external ID named `_id` could leak into dev copies. CakePHP's `bake` also guesses associations from `_id` columns.
+- Apply this to new columns. Rename existing external `_id` columns only when asked, as a schema change (see above), and update every reference in the same change.
+- Internal keys stay integers. Don't store an internal key in a text column.
+
 ---
 
 # Formatting and Cleanup Rules
