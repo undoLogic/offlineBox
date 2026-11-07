@@ -29,6 +29,15 @@ class OfflineBoxCommand extends Command
     public const SETTING_PREFIX = '';
 
     // Public so the admin validation page shows the same list that gets backed up.
+    // Add 'anonymize' to also upload an anonymized copy to backups_anonymized/<connection>.sql.
+    // Only listed columns and keepRows rows keep real data; everything else is faked.
+    // e.g. 'default' => [
+    //     'exclude' => "activity_logs",
+    //     'anonymize' => [
+    //         'keep' => ['users' => ['user_type', 'active', 'created'], 'products' => ['name', 'price']],
+    //         'keepRows' => ['users' => ['user_type' => ['admin']]],
+    //     ],
+    // ],
     public const CONNECTIONS = [
         'default' => ['exclude' => ''],
     ];
@@ -64,6 +73,14 @@ class OfflineBoxCommand extends Command
         foreach (self::CONNECTIONS as $name => $tables) {
             $log[$name] = $this->execute_backup($name, $tables, $io);
             $io->out($name . ': ' . $log[$name]);
+
+            if (isset($tables['anonymize'])) {
+                $label = $name . ' (anonymized)';
+                $log[$label] = $log[$name] === 'OK'
+                    ? $this->execute_anonymized($name, $tables, $io)
+                    : 'SKIPPED: the full backup failed';
+                $io->out($label . ': ' . $log[$label]);
+            }
         }
 
         if (array_diff($log, ['OK']) === []) {
@@ -114,6 +131,37 @@ class OfflineBoxCommand extends Command
             return 'FAILED: ' . $e->getMessage();
         } finally {
             // Never leave unencrypted dumps on the web server.
+            if (!empty($dump['file']) && is_file($dump['file'])) {
+                unlink($dump['file']);
+            }
+        }
+    }
+
+    // Runs only after the full backup succeeded, and never touches it.
+    private function execute_anonymized(string $name, array $tables, ConsoleIo $io): string
+    {
+        $dump = [];
+
+        try {
+            $client = new OfflineBox(self::s3Config());
+            $dump = $client->anonymizedDump($name, $tables);
+            if ($dump['STATUS'] !== 200) {
+                throw new \RuntimeException($dump['MSG']);
+            }
+            foreach ($dump['warnings'] as $warning) {
+                $io->warning($name . ' (anonymized): ' . $warning);
+                Log::warning('[OfflineBox] ' . $name . ' (anonymized): ' . $warning);
+            }
+
+            $upload = $client->upload($dump['file'], OfflineBox::anonymizedKey($name));
+            if ($upload['STATUS'] !== 200) {
+                throw new \RuntimeException($upload['MSG']);
+            }
+
+            return 'OK';
+        } catch (\Throwable $e) {
+            return 'FAILED: ' . $e->getMessage();
+        } finally {
             if (!empty($dump['file']) && is_file($dump['file'])) {
                 unlink($dump['file']);
             }

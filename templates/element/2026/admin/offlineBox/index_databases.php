@@ -1,6 +1,7 @@
 <?php
 /**
- * What will be exported, one row per configured connection.
+ * What will be exported, one row per configured connection, with downloads
+ * of the latest files already in the bucket.
  *
  * @var array $check
  * @var array $levels
@@ -10,7 +11,7 @@
     <div class="card-header">
         <h2 class="h5 mb-0">Databases: what will be exported</h2>
     </div>
-    <div>
+    <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
             <thead>
                 <tr>
@@ -22,6 +23,7 @@
                     <th>With data</th>
                     <th>Structure only</th>
                     <th>Size</th>
+                    <th>Download</th>
                 </tr>
             </thead>
             <tbody>
@@ -43,10 +45,22 @@
                         <td><?= h($database['tablesWithData']); ?></td>
                         <td><?= h($database['tablesStructureOnly']); ?></td>
                         <td><?= h($database['size']); ?></td>
+                        <td class="text-nowrap">
+                            <?php foreach ($database['downloads'] as $download): ?>
+                                <div class="mb-1">
+                                    <?php if ($download['available']): ?>
+                                        <?= $this->Html->link($download['label'], ['action' => $download['action'], $database['connection']], ['class' => 'btn btn-sm btn-outline-primary']); ?>
+                                    <?php else: ?>
+                                        <span class="btn btn-sm btn-outline-secondary disabled"><?= h($download['label']); ?></span>
+                                    <?php endif; ?>
+                                    <span class="small text-muted"><?= h($download['detail']); ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                        </td>
                     </tr>
                     <?php if (!empty($database['messages']) || !empty($database['tables'])): ?>
                         <tr>
-                            <td colspan="8" class="bg-light">
+                            <td colspan="9" class="bg-light">
                                 <?php foreach ($database['messages'] as $message): ?>
                                     <div class="small text-danger"><?= h($message); ?></div>
                                 <?php endforeach; ?>
@@ -55,6 +69,7 @@
                                         <summary class="small">Show <?= h(count($database['tables'])); ?> tables, largest first</summary>
                                         <p class="small text-muted mt-2 mb-1">
                                             To leave a table's data out of the backup, add it to <code>exclude</code> in <code>OfflineBoxCommand::CONNECTIONS</code>.
+                                            In the anonymized backup, columns not listed under a table are faked.
                                         </p>
                                         <ul class="list-unstyled small mb-0 mt-2">
                                             <?php foreach ($database['tables'] as $table): ?>
@@ -64,6 +79,9 @@
                                                     </span>
                                                     <span class="text-muted"><?= h($table['size']); ?></span>
                                                     <?= h($table['name']); ?>
+                                                    <?php if ($table['anonymize'] !== ''): ?>
+                                                        <div class="text-muted ms-3"><?= h($table['anonymize']); ?></div>
+                                                    <?php endif; ?>
                                                 </li>
                                             <?php endforeach; ?>
                                         </ul>

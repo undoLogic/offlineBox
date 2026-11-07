@@ -1,6 +1,6 @@
 # OfflineBox - Anonymized Backups + Download Buttons (MVP)
 
-**Status:** draft for review, 2026-11-07. Nothing is built yet. All decisions are made, so it is ready to program.
+**Status (2026-11-07):** built. The dump was tested in throwaway containers (MySQL 5.7, PHP 8.1, MariaDB `mysqldump`) with stand-ins for CakePHP and S3. It has not run in a real CakePHP project, against a real bucket, or through the admin page yet. Ticked scenarios below are the ones that were run.
 
 This is MVP work (AGENTS.md "MVP Work"). No automated tests are created. `## Testing` lists what to check by hand, and nothing is ticked until it has been run.
 
@@ -82,7 +82,7 @@ Each project names its users table, the column and the admin values, because the
 ],
 ```
 
-- A row is kept whole when the column holds one of the listed values. Every other row in that table follows the normal column rules.
+- A row is kept whole when the column holds one of the listed values. Every other row in that table follows the normal column rules. If a table lists several columns, a match on any one of them keeps the row.
 - `keepRows` is a list of exact values. There is no pattern or "all rows" option.
 - This puts the admins' real emails and password hashes in the anonymized dump. That is accepted: the admins are the developers using it.
 - A `keepRows` table or column that doesn't exist fails the anonymized dump. A typo here would silently lock you out of dev, so it fails loudly instead.
@@ -150,7 +150,7 @@ Leaving `anonymize` out of a connection means no anonymized dump is made for it.
 - **Structure is complete:** every table, column, index, trigger, view and routine, the same as the full dump.
 - **Excluded tables:** structure only, the same as the full dump.
 - **Warning, not an error:** a `keep` name that matches no column. The real column is faked anyway, so it is safe.
-- **Errors:** a `keep` or `keepRows` table that is also in `exclude` (there is nothing to anonymize), and a `keepRows` table or column that doesn't exist (D7).
+- **Errors:** a `keep` or `keepRows` table that is also in `exclude` (there is nothing to anonymize), a `keepRows` table or column that doesn't exist (D7), and any key under `anonymize` other than `keep` and `keepRows` (a typo like `keepRow` would otherwise lock you out of dev).
 
 ## 2. Fake values
 
@@ -173,7 +173,9 @@ Every fake value must be valid for the column, so the dump restores and the app 
 | json | `{}` |
 | blob / binary | Empty |
 
-`{pk}` is the row's primary key. For a composite key, the parts are joined with `-`.
+`{pk}` is the row's primary key. For a composite key, the parts are joined with `-`. A table with no primary key uses the row number instead.
+
+A unique number column gets the row number. A unique column of any other type (date, enum and so on) becomes NULL if it is nullable, and otherwise fails the anonymized dump, asking for it to be kept. So does a non-nullable spatial column.
 
 Passwords, tokens and API keys must never be put in `keep`. Faked passwords become `anonymized`, so only `keepRows` users can log in to dev.
 
@@ -185,12 +187,21 @@ Known limits, accepted for the MVP:
 
 ## 3. How the anonymized dump is made
 
-1. **Structure:** `mysqldump --no-data --routines` with the existing dump flags, for every table. This gives the same schema, triggers, views and routines as the full dump.
-2. **Data:** for each non-excluded table, PHP reads the rows with an unbuffered `SELECT`, in primary-key order, swaps every non-kept value for its fake value, and writes `INSERT` statements in batches to the same file. It never holds a whole table in memory.
-3. The file starts with the same `CREATE DATABASE` / `USE` header as the full dump, so it restores the same way.
-4. **Reading only:** the anonymizer never writes to the database. No temp tables, no `UPDATE`.
+1. **Structure:** `mysqldump --no-data --skip-triggers --routines` with the existing dump flags, for the whole database: tables, views and routines.
+2. **Data:** for each non-excluded table, PHP reads the rows on its own connection with an unbuffered `SELECT`, in primary-key order, swaps every non-kept value for its fake value, and writes `INSERT` statements in batches (500 rows or 1 MB) to the same file. It never holds a whole table in memory.
+3. **Triggers:** `mysqldump --no-data --no-create-info` last, so restoring the data fires no trigger, as with mysqldump's own output.
+4. The file starts with the same `CREATE DATABASE` / `USE` header as the full dump, so it restores the same way.
+5. **Reading only:** the anonymizer never writes to the database. No temp tables, no `UPDATE`.
+
+Details:
+
+- The data section uses the same settings mysqldump does (`FOREIGN_KEY_CHECKS=0`, `SQL_MODE='NO_AUTO_VALUE_ON_ZERO'`, UTC, `utf8mb4`), and restores them afterwards.
+- Generated columns are left out of the `INSERT`s, because MySQL computes them.
+- Binary and spatial values are written as hex, and `BIT` as a number, so kept values restore byte for byte.
 
 **Decided (accepted for the MVP):** the `SELECT` is not inside the full dump's `--single-transaction` snapshot, so the anonymized dump can differ slightly from the full one if the site is busy. It runs in its own `START TRANSACTION WITH CONSISTENT SNAPSHOT`, so it is consistent with itself.
+
+The plan (what is kept and how each column is faked) comes from one private `resolveAnonymize()`, used by both the dump and `validate()`, so the admin page and `--check` show exactly what the dump does.
 
 New public method on `OfflineBox`: `anonymizedDump($connectionName, array $tableConfig)`. It is CLI-only like `mysqlDump()`, and returns the usual `STATUS` / `MSG` array plus `file`, `database` and `warnings`.
 
@@ -223,9 +234,9 @@ On `/admin/offline-box`, in each exported database's row:
 
 In each database's table list, every non-excluded table shows its kept columns, and which `keepRows` rule applies to it. Everything else is faked and isn't listed. A `keep` name matching no column shows yellow, and `--check` prints the same warning.
 
-Storage section: red if `backups_anonymized/<connection>.sql` is 2 days old or more, the same rule as `backups/`.
+Storage section: one row per anonymized connection. Red if `backups_anonymized/<connection>.sql` is 2 days old or more, the same rule as `backups/`. Yellow "None yet" if it isn't there, as on a new install.
 
-New controller actions, GET-only and under the `Admin` prefix: `downloadAnonymized($connection)` and `downloadFull($connection)`.
+New controller actions, GET-only and under the `Admin` prefix: `downloadAnonymized($connection)` and `downloadFull($connection)`. Both call `OfflineBox::download()`, which only reads from the bucket.
 
 - The connection name must be a key of `OfflineBoxCommand::CONNECTIONS`, or the action returns 404. The bucket key is built from the config entry, never from the raw request value.
 - No role checks in the actions (D3).
@@ -269,13 +280,18 @@ All scenarios are manual for the MVP. Run them against a test bucket and a local
 
 #### Scenarios
 
-- [ ] The dump restores into an empty Docker MySQL 5.7 with no errors.
-- [ ] Every table, column, index, trigger, view and routine matches the full dump.
-- [ ] Row counts match the full dump for every non-excluded table.
-- [ ] Excluded tables are present and empty.
+- [x] The dump restores into an empty Docker MySQL 5.7 with no errors.
+- [x] Every table, column, index, trigger, view and routine matches the original database.
+  - Checked against `information_schema`, not against a full dump file.
+- [x] Restoring the dump doesn't fire triggers, and the triggers still work afterwards.
+- [x] Generated columns are recomputed on restore.
+- [x] Kept values restore byte for byte: BLOB, BIT, DOUBLE, JSON, emoji and `latin1` accents.
+- [x] Row counts match the full dump for every non-excluded table.
+- [x] Excluded tables are present and empty.
 - [ ] The app boots against it, and an admin can log in with their real email and password.
-- [ ] Relationships still work: pages that join tables show linked records.
-- [ ] Unique indexes restore without duplicate-key errors.
+- [x] Relationships still work: pages that join tables show linked records.
+  - Checked with a SQL join, not through the app.
+- [x] Unique indexes restore without duplicate-key errors.
 
 ### No real data leaks
 
@@ -287,16 +303,16 @@ All scenarios are manual for the MVP. Run them against a test bucket and a local
 
 #### Scenarios
 
-- [ ] A column in `keep` holds the real values.
-- [ ] A column not in `keep` holds only fake values, apart from NULLs.
-- [ ] A table missing from `anonymize.keep` holds only fake values, apart from its keys.
+- [x] A column in `keep` holds the real values.
+- [x] A column not in `keep` holds only fake values, apart from NULLs.
+- [x] A table missing from `anonymize.keep` holds only fake values, apart from its keys.
 - [ ] A newly added column is faked without any config change.
-- [ ] A string `*_id` column (e.g. `stripe_customer_id`) is faked unless kept.
-- [ ] An external ID named without `_id` (e.g. `stripeCustomerID`) is faked.
-- [ ] Admin user rows are real. No non-admin user's real email or password hash appears anywhere in the dump (search for a known real one).
-- [ ] A misspelled name in `keep` gives a warning, and the real column is faked.
-- [ ] A misspelled `keepRows` table or column fails the anonymized dump with a clear message.
-- [ ] A `keep` table that is also in `exclude` fails the anonymized dump with a clear message.
+- [x] A string `*_id` column (e.g. `stripe_customer_id`) is faked unless kept.
+- [x] An external ID named without `_id` (e.g. `stripeCustomerID`) is faked.
+- [x] Admin user rows are real. No non-admin user's real email or password hash appears anywhere in the dump (search for a known real one).
+- [x] A misspelled name in `keep` gives a warning, and the real column is faked.
+- [x] A misspelled `keepRows` table or column fails the anonymized dump with a clear message.
+- [x] A `keep` table that is also in `exclude` fails the anonymized dump with a clear message.
 
 ### Download buttons
 
@@ -327,9 +343,10 @@ All scenarios are manual for the MVP. Run them against a test bucket and a local
 
 #### Scenarios
 
-- [ ] Each table shows its kept columns and any `keepRows` rule.
+- [x] Each table shows its kept columns and any `keepRows` rule.
+  - Checked in the data `validate()` returns, not on the rendered page.
 - [ ] A `keep` name matching no column shows yellow, and `--check` prints the same warning.
-- [ ] A missing or 2-day-old anonymized dump shows red in the Storage section.
+- [ ] A 2-day-old anonymized dump shows red in the Storage section, and a missing one shows yellow "None yet".
 
 ## Notes
 

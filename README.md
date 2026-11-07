@@ -51,6 +51,7 @@ Other database servers are not supported or tested in the MVP, including MySQL 8
     - No controller action, route or `config/cron.php` job runs a backup. `run_all` would dump everything on every call, inside a web request.
     - The class enforces this: `mysqlDump()` and `upload()` throw unless `PHP_SAPI === 'cli'`, so web code can't start a backup by accident. The read-only admin page (decision 12) uses a separate method that dumps and writes nothing.
     - No cron heartbeat is recorded. Phase 1B fills that gap.
+    - **Downloads (2026-11-07):** the admin page can download the latest files already in the bucket (`OfflineBox::download()`). It streams them and never dumps. See `docs/features/MVP-offlinebox-anonymized-backups.md`.
 - **5. Secrets use the ENV Vars pattern** (`get_cfg_var('X') ?: env('X') ?: ''`), like the Files and Status Endpoint blocks. Backups get their own `OFFLINEBOX_S3_*` settings instead of reusing `FILES_S3_*`, so backups can have a separate bucket and key. Unlike those blocks, a missing setting is a failure, not "off": a backup that silently never runs is the failure this module exists to prevent.
 - **11. The CLI environment is the project's job.** Each project adjusts its bootstrap at launch to select the right live or dev environment, so OfflineBox assumes the CLI gets the correct database and adds no environment detection of its own. Connect to the real environment and confirm the database before setting up cron (see `## Cron`).
 
@@ -63,6 +64,7 @@ Other database servers are not supported or tested in the MVP, including MySQL 8
 - **1. Module contents.** `offlineBox/` holds `OfflineBox.php`, this README, the `OfflineBoxCommand.php` template and the admin page files (decision 12). The class is copied unchanged. The command is copied and then edited for the project.
 - **2. Namespace.** The class declares `namespace App\Util;`, because it installs to `src/Util/`, so "copy unchanged" stays true.
 - **6. Bucket layout.** One bucket per project, with dated objects at `backups/<filename>` (`OfflineBox::KEY_PREFIX`) and the latest copy of each connection at `backups_recent/<connection>.sql` (`OfflineBox::RECENT_PREFIX`), so nobody has to scroll a long list to find it. The copy only happens after the upload verifies, and it overwrites the last copy, so the server key never needs delete permission. This matches the local client, whose example config reads `backups/`.
+    - A connection with `anonymize` also gets `backups_anonymized/<connection>.sql` (`OfflineBox::ANONYMIZED_PREFIX`): the latest anonymized dump, overwritten each run, never deleted.
 - **7. One upload method.** `upload()` uses the SDK's `ObjectUploader`, as the Files block does, which switches to multipart for large files. It is always verified. Multipart ETags are not MD5, so those uploads verify size only.
 - **8. Dump settings for MySQL 5.7.**
     - `--single-transaction`: consistent snapshot without blocking the live site. It only protects InnoDB. MyISAM tables are dumped as they change, so they can be out of step with the rest if the site is busy. The page lists them as a warning. Schedule the backup for a quiet time, and convert those tables to InnoDB as a separate project decision. OfflineBox never converts them.
@@ -107,7 +109,7 @@ Don't rewrite or "improve" the class inside the host project. Project-specific b
 | `templates/element/2026/admin/offlineBox/index_rows.php` | same path |
 | `templates/element/2026/admin/offlineBox/index_install.php` | same path |
 
-**4. Edit the command for the project.** This is the only copied file you edit. Ask the developer whether another project shares this server's `php.ini`. If so, set `SETTING_PREFIX` (see `## Storage setup`). Set `CONNECTIONS` to the project's real connections (see `## Choosing tables`), and ask the developer which tables to exclude. Add the failure alert at the failure hook, using the project's existing email or queue. `SetupCase::sendEmail()` may contain a `die()` for the live environment, so check it before relying on it.
+**4. Edit the command for the project.** This is the only copied file you edit. Ask the developer whether another project shares this server's `php.ini`. If so, set `SETTING_PREFIX` (see `## Storage setup`). Set `CONNECTIONS` to the project's real connections (see `## Choosing tables`), and ask the developer which tables to exclude. Ask whether they want an anonymized dump for dev; if so, ask which columns to `keep` and which admin rows to keep whole (`keepRows`, see `## Anonymized dumps`). Add the failure alert at the failure hook, using the project's existing email or queue. `SetupCase::sendEmail()` may contain a `die()` for the live environment, so check it before relying on it.
 
 **5. Set the storage credentials.** See `## Storage setup`. Ask the developer for the values. Never commit them, and never write them in a tracked file.
 
@@ -247,6 +249,7 @@ Answers "is this set up correctly, and what will be exported?" without running a
 
 - **URL:** `GET /admin/offline-box`. Admin prefix RBAC only, with no role checks in the action.
 - **Read-only:** no dump, no bucket write, no temp file, no POST. A check that fails shows red instead of breaking the page.
+- **Downloads:** each exported database has **Download anonymized data** (when it has `anonymize`) and **Download full data** buttons. They are GET links to `downloadAnonymized` / `downloadFull`, open to any Admin, and stream the latest file from the bucket. A missing file shows "None yet". Download logging is optional: the controller has a comment where a project can add it.
 - **Secrets:** passwords and keys are never shown, only "set" or "missing".
 - **Files in `offlineBox/`** (folders match the install path):
     - `src/Controller/Admin/OfflineBoxController.php`
@@ -298,6 +301,27 @@ public const CONNECTIONS = [
 - The list can be an array or a newline-separated string (paste straight from phpMyAdmin). Commas don't separate names: a comma-separated list is read as one table name, so the dump fails.
 - If an `exclude` name matches no table, the dump fails instead of backing up data meant to be left out. A view counts as no match: it holds no rows, so there's nothing to exclude.
 
+## Anonymized dumps
+
+Add `anonymize` to a connection to also upload a dev-safe copy, after the full backup succeeds:
+
+```php
+'default' => [
+    'exclude' => "activity_logs",
+    'anonymize' => [
+        'keep' => ['users' => ['user_type', 'active', 'created'], 'products' => ['name', 'price']],
+        'keepRows' => ['users' => ['user_type' => ['admin']]],
+    ],
+],
+```
+
+- Only columns in `keep`, primary keys and integer `id` / `*_id` columns keep real data. Every other column is faked with a value valid for its type, so new columns and tables are safe by default.
+- `keepRows` keeps whole rows real, so admins can log in to dev with their own account.
+- Same structure, routines, views and triggers as the full dump, and the same row counts. Excluded tables stay empty.
+- A failed anonymized dump never touches the full backup, but the command still exits non-zero.
+
+Full rules and fake values: `docs/features/MVP-offlinebox-anonymized-backups.md`.
+
 ## Cron
 
 ```cron
@@ -328,14 +352,14 @@ Set the same limit on the server first with `SET GLOBAL max_allowed_packet = 107
 
 Load local Docker from a real backup instead of a web download. Every local setup then also proves that the backups in the bucket can be restored.
 
-1. Download `backups_recent/default.sql` from the bucket's web panel, so production keys never go into Docker.
+1. Use **Download anonymized data** on the admin page, or download `backups_anonymized/default.sql` from the bucket's web panel, so production keys never go into Docker. Use the full `backups_recent/default.sql` only to test a restore.
 2. From `dockerLinux/`, restore it. This replaces the tables in the local database:
 
 ```bash
 docker compose exec -T db sh -c 'exec mysql -uroot -p"$MYSQL_ROOT_PASSWORD" --max-allowed-packet=1G' < default.sql
 ```
 
-The local database then holds real data, so keep the dump file out of git and delete it when you're done. Excluded tables come back empty.
+A full dump puts real data in the local database, so keep the dump file out of git and delete it when you're done. An anonymized dump still holds the kept columns and admin rows. Excluded tables come back empty.
 
 ## Roadmap
 
@@ -361,6 +385,7 @@ Built, and tested only as listed in `## MVP Status`:
 - [x] `OfflineBoxCommand.php`: exits non-zero on failure, handles each database separately, deletes the local `.sql`, uploads under `backups/`, and has the failure hook
 - [x] Admin validation page and `--check`
 - [x] Install steps for removing the old version from a project
+- [x] Anonymized dump to `backups_anonymized/`, and download buttons on the admin page (tested in throwaway containers only, see the feature file)
 
 Still to do:
 
