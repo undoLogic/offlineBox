@@ -46,7 +46,7 @@ These are places where the original draft conflicts with decisions already in th
 
 The draft had the buttons run the anonymize export on demand in the web request, sharing one function with the cron push. That breaks decision 4 (no dump ever runs from the web), the class's CLI guard, and the AGENTS.md rule that no controller action shares a method with a cron task.
 
-**Recommended:** the buttons download the **latest file already in the bucket**. They never dump anything.
+GREAT CALL, ONLY WHAT IS ALREADY SAVED INTO S3, THIS WAY WE KNOW WE ARE USING DATA THAT IS SAFE **Recommended:** the buttons download the **latest file already in the bucket**. They never dump anything.
 
 - Anonymized button: streams `backups_anonymized/<connection>.sql`
 - Full button: streams `backups_recent/<connection>.sql`
@@ -55,43 +55,46 @@ The draft had the buttons run the anonymize export on demand in the web request,
 
 ### D2. How the file reaches the browser **[DECIDE]**
 
-**Recommended:** stream the S3 object through PHP (`GetObject` body stream into the response), chunk by chunk, never loading it into memory. The bucket URL and key never reach the browser, and every download passes through the server, so the download log is complete.
+GREAT - **Recommended:** stream the S3 object through PHP (`GetObject` body stream into the response), chunk by chunk, never loading it into memory. The bucket URL and key never reach the browser, and every download passes through the server, so the download log is complete.
 
-The other option, a short-lived presigned URL (e.g. 60 seconds), is simpler and avoids PHP timeouts on big files, but anyone holding the link in that window can download it.
+NO TOO COMPLICATED FOR THIS MVP - The other option, a short-lived presigned URL (e.g. 60 seconds), is simpler and avoids PHP timeouts on big files, but anyone holding the link in that window can download it.
 
 ### D3. Who can download the full data **[DECIDE]**
 
-The page sits under the `Admin` prefix, so every Admin can reach every action in it (AGENTS.md "Prefix access is all-or-nothing").
+THAT'S OK ADMIN HAS FULL REIGN - The page sits under the `Admin` prefix, so every Admin can reach every action in it (AGENTS.md "Prefix access is all-or-nothing").
 
-**Recommended:** the full-data action checks `AppController::isOwner()` itself, in the action, and returns 403 otherwise. The button is also hidden for non-owners, but hiding it is not the protection. The anonymized download is open to anyone who can reach the page.
+ADMIN CAN DO EVERYTHING, DON'T CHECK IS OWNER (FOR ME OWNER IS LOWER THEN ADMIN AND i DO NOT TRUST OWNER FOR BACKUPS) **Recommended:** the full-data action checks `AppController::isOwner()` itself, in the action, and returns 403 otherwise. The button is also hidden for non-owners, but hiding it is not the protection. The anonymized download is open to anyone who can reach the page.
 
-Confirm that every host project has an Owner role and `isOwner()`. If some don't, say what "owner" means there.
+NO - ISoWNER FOR ME IS THE CUSTOMER ACCESS TO FEATURES AND NOT BACKUPS AND INFRASTRUCTURE - Confirm that every host project has an Owner role and `isOwner()`. If some don't, say what "owner" means there.
 
 ### D4. HTTP method for downloads
 
-A download doesn't change data, so GET would be allowed. But the full download writes a log entry and hands out real customer data, and link previews and scanners follow GET links.
+GET IS FINE, AS WE HAVE A SECURE SESSION ALREADY LOGGED IN, SO WE ARE NOT GIVING ANYTHING AWAY WITH THE LINKS - A download doesn't change data, so GET would be allowed. But the full download writes a log entry and hands out real customer data, and link previews and scanners follow GET links.
 
-**Recommended:** both buttons are small POST forms with CSRF, and the actions allow POST only.
+USE GET **Recommended:** both buttons are small POST forms with CSRF, and the actions allow POST only.
 
 ### D5. Where the download log goes **[DECIDE]**
 
-This module is copied into host projects and has no table of its own. The draft said "the existing logging/comments pattern", which doesn't exist in the module.
+LOG IS OPTIONAL AND ADDED LATER BY THE DEVELOPER, DON'T MAKE THAT REQUIRED TO START - This module is copied into host projects and has no table of its own. The draft said "the existing logging/comments pattern", which doesn't exist in the module.
 
 **Recommended:** `Log::info()` with scope `offlinebox`, written to `logs/offlinebox.log`, one line per download: user id, user email, date and time, connection, full or anonymized, IP. If a host project already has an audit table, the install step can call that as well.
 
 ### D6. Gzip
 
-Decision 10 says dumps stay plain `.sql`. **Recommended:** keep `.sql` for the MVP. The download filename becomes `{database}-anonymized-{YYYY-MM-DD}.sql` and `{database}-full-{YYYY-MM-DD}.sql`, where the date is the dump's date, not today's. gzip can come later for both dumps together.
+SQL FOR MVP YES - Decision 10 says dumps stay plain `.sql`. **Recommended:** keep `.sql` for the MVP. The download filename becomes `{database}-anonymized-{YYYY-MM-DD}.sql` and `{database}-full-{YYYY-MM-DD}.sql`, where the date is the dump's date, not today's. gzip can come later for both dumps together.
 
 ### D7. Logins in dev **[DECIDE]**
 
-The draft wanted logins to work against the anonymized dump, but also fakes every password and email. Then nobody can log in.
+ANY USER-TYPE THAT IS ADMIN DO NOT ANONYMIZE IT, THIS WAY WHEN i DOWNLOAD i CAN DOWNLOAD WITH MY EXISTING USER AND THAT WILL NOT BE A CUSTOMER - The draft wanted logins to work against the anonymized dump, but also fakes every password and email. Then nobody can log in.
 
-**Recommended:** columns whose name contains `password` get one fixed bcrypt hash of a known dev password (for example `password`), stored as a constant in the class. Emails become `user{id}@example.test`. In dev you log in as `user1@example.test` with the known password. The real hash never leaves the server.
+NO TOO COMPLEX FOR MVP **Recommended:** columns whose name contains `password` get one fixed bcrypt hash of a known dev password (for example `password`), stored as a constant in the class. Emails become `user{id}@example.test`. In dev you log in as `user1@example.test` with the known password. The real hash never leaves the server.
 
 ### D8. Foreign keys kept automatically
 
 The draft kept every `*_id` column. Many `*_id` columns are not relationships and hold sensitive external values: `stripe_customer_id`, `google_id`, `session_id`, `paypal_payer_id`.
+
+I THINK IT IS BETTER THAT IN THE FUTURE ANY EXTERNAL ID WILL BE NAMED stripecustomerID (without the _)
+this way in the future _id will always be an internal ?
 
 **Recommended:** keep automatically only
 
@@ -104,7 +107,8 @@ A string `*_id` column is faked unless it is whitelisted.
 
 The draft warned about any column not in the whitelist. Almost every column is not in the whitelist, so every run would print hundreds of warnings and nobody would read them.
 
-**Recommended:** each table lists both `keep` and `fake`. A column in neither list is still faked (safe), but gets a warning so someone decides on it. A table not listed at all is faked fully and gets one warning for the table. See `## 1. Whitelist config`.
+
+ONLY SHOW WHAT WE ARE KEEPING OR TRUSTING WE WILL ASSUME EVERYTHING ELSE IS FAKE - **Recommended:** each table lists both `keep` and `fake`. A column in neither list is still faked (safe), but gets a warning so someone decides on it. A table not listed at all is faked fully and gets one warning for the table. See `## 1. Whitelist config`.
 
 ## 1. Whitelist config
 
