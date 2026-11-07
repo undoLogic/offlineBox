@@ -1,0 +1,29 @@
+{
+  "PullDays": 30,
+  "KeepAllMonths": 3,
+  "DryRun": true,
+  "LogFile": "D:\\OfflineBox\\offlinebox.log",
+  "BackupSets": [
+    {
+      "Name": "ClientA",
+      "S3Endpoint": "https://nyc3.digitaloceanspaces.com",
+      "S3Region": "nyc3",
+      "S3Bucket": "clienta-backups",
+      "S3Prefix": "backups/",
+      "S3AccessKey": "read-only key",
+      "S3SecretKey": "read-only secret",
+      "LocalDir": "D:\\OfflineBox\\ClientA"
+    },
+    {
+      "Name": "ClientB",
+      "S3Endpoint": "https://nyc3.digitaloceanspaces.com",
+      "S3Region": "nyc3",
+      "S3Bucket": "clientb-backups",
+      "S3Prefix": "backups/",
+      "S3AccessKey": "read-only key",
+      "S3SecretKey": "read-only secret",
+      "LocalDir": "D:\\OfflineBox\\ClientB",
+      "PullDays": 45
+    }
+  ]
+}
